@@ -43,17 +43,12 @@ export async function callMinimax(body: MinimaxBody): Promise<string> {
     throw new Error(`Empty content in response: ${JSON.stringify(data)}`)
   }
 
-  const block = content[0]
-  // Anthropic format: { type: 'text', text: '...' }
-  // OpenAI format: { message: { content: '...' } }
-  const text =
-    block.text ??
-    block.message?.content ??
-    block.content ??
-    ''
+  // MiniMax-M2.5 returns a thinking block before the text block — find the text one
+  const block = content.find((b: { type: string }) => b.type === 'text') ?? content[0]
+  const text = block.text ?? block.message?.content ?? block.content ?? ''
 
   if (!text) {
-    throw new Error(`Could not extract text from block: ${JSON.stringify(block)}`)
+    throw new Error(`No text block found. Blocks: ${content.map((b: {type:string}) => b.type).join(', ')}`)
   }
 
   return text.trim()
