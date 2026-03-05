@@ -13,8 +13,8 @@ interface MinimaxBody {
 }
 
 export async function callMinimax(body: MinimaxBody): Promise<string> {
-  const apiKey = process.env.MINIMAX_API_KEY
-  if (!apiKey) throw new Error('MINIMAX_API_KEY is not set')
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set in Vercel environment variables')
 
   const res = await fetch(MINIMAX_URL, {
     method: 'POST',
