@@ -54,7 +54,7 @@ Be honest and practical. Use simple language.`
 
       const raw = await callMinimax({
         model: 'MiniMax-M2.5',
-        max_tokens: 600,
+        max_tokens: 4000,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: evalPrompt }],
       })
