@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { callMinimax } from '@/lib/minimax'
 
 const SYSTEM_PROMPT = `You are an AI hiring assistant evaluating candidates for blue-collar jobs.
 
@@ -17,11 +17,6 @@ export async function POST(req: NextRequest) {
   try {
     const { jobRole, cvText } = await req.json()
 
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      baseURL: process.env.ANTHROPIC_BASE_URL,
-    })
-
     const userMessage = `Job Role: ${jobRole.title}
 Key tasks for this role: ${jobRole.tasks.join(', ')}
 
@@ -30,17 +25,16 @@ ${cvText}
 
 Start the interview. Based on what you see in the CV, ask your first practical question about their hands-on experience with this type of work. Ask only one question.`
 
-    const message = await client.messages.create({
+    const question = await callMinimax({
       model: 'MiniMax-M2.5',
       max_tokens: 180,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     })
 
-    const question = (message.content[0] as { text: string }).text.trim()
     return NextResponse.json({ question })
   } catch (err) {
     console.error('[start-interview]', err)
-    return NextResponse.json({ error: 'Failed to generate first question.' }, { status: 500 })
+    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }
