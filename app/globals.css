@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased;
+  }
+}
+
+/* Thinking dot stagger via CSS custom delay */
+.dot-1 { animation-delay: 0s; }
+.dot-2 { animation-delay: 0.18s; }
+.dot-3 { animation-delay: 0.36s; }
