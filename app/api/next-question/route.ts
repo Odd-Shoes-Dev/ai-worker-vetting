@@ -79,7 +79,7 @@ This is question ${questionCount + 1} of ${MAX_QUESTIONS}. Based on the candidat
 
     const question = await callMinimax({
       model: 'MiniMax-M2.5',
-      max_tokens: 150,
+      max_tokens: 2000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: nextPrompt }],
     })

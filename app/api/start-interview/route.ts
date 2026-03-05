@@ -27,7 +27,7 @@ Start the interview. Based on what you see in the CV, ask your first practical q
 
     const question = await callMinimax({
       model: 'MiniMax-M2.5',
-      max_tokens: 180,
+      max_tokens: 2000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     })
