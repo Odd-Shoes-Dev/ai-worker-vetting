@@ -9,27 +9,6 @@ interface Props {
 
 type Tab = 'paste' | 'upload'
 
-async function extractTextFromPdf(file: File): Promise<string> {
-  // Dynamically import pdfjs-dist to avoid SSR issues
-  const pdfjsLib = await import('pdfjs-dist')
-  // Use CDN worker to avoid bundling the large worker file
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
-
-  const arrayBuffer = await file.arrayBuffer()
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-
-  const pages: string[] = []
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i)
-    const content = await page.getTextContent()
-    const pageText = content.items
-      .map((item) => ('str' in item ? item.str : ''))
-      .join(' ')
-    pages.push(pageText)
-  }
-  return pages.join('\n')
-}
-
 export default function CVInput({ value, onChange }: Props) {
   const [tab, setTab] = useState<Tab>('paste')
   const [fileName, setFileName] = useState('')
@@ -40,40 +19,37 @@ export default function CVInput({ value, onChange }: Props) {
   const handleFile = async (file: File) => {
     setParseError('')
     setFileName(file.name)
+    setParsing(true)
+    onChange('')
 
-    if (file.type === 'text/plain') {
-      const text = await file.text()
-      onChange(text)
-      return
-    }
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
 
-    if (file.type === 'application/pdf') {
-      setParsing(true)
-      try {
-        const text = await extractTextFromPdf(file)
-        if (!text.trim()) throw new Error('Could not extract text. Try a text-based PDF.')
-        onChange(text)
-      } catch (e) {
-        setParseError(e instanceof Error ? e.message : 'Failed to parse PDF.')
-        setFileName('')
-      } finally {
-        setParsing(false)
+      const res = await fetch('/api/parse-cv', { method: 'POST', body: formData })
+      const data = await res.json()
+
+      if (!res.ok || data.error) {
+        throw new Error(data.error ?? 'Failed to parse file.')
       }
-      return
-    }
 
-    setParseError('Unsupported file type. Please upload a PDF or TXT file.')
-    setFileName('')
+      onChange(data.text)
+    } catch (e) {
+      setParseError(e instanceof Error ? e.message : 'Failed to read file.')
+      setFileName('')
+    } finally {
+      setParsing(false)
+    }
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleFile(file)
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
-    if (file) handleFile(file)
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
     if (file) handleFile(file)
   }
 
@@ -84,6 +60,13 @@ export default function CVInput({ value, onChange }: Props) {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  const switchTab = (t: Tab) => {
+    setTab(t)
+    onChange('')
+    setFileName('')
+    setParseError('')
+  }
+
   return (
     <div>
       {/* Tab switcher */}
@@ -91,7 +74,7 @@ export default function CVInput({ value, onChange }: Props) {
         {(['paste', 'upload'] as Tab[]).map((t) => (
           <button
             key={t}
-            onClick={() => { setTab(t); onChange(''); setFileName(''); setParseError('') }}
+            onClick={() => switchTab(t)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
               tab === t
                 ? 'bg-white text-gray-900 shadow-sm'
@@ -129,10 +112,10 @@ export default function CVInput({ value, onChange }: Props) {
           <div
             onDrop={handleDrop}
             onDragOver={(e) => e.preventDefault()}
-            onClick={() => !fileName && fileInputRef.current?.click()}
+            onClick={() => !fileName && !parsing && fileInputRef.current?.click()}
             className={`relative border-2 border-dashed rounded-2xl p-10 text-center transition-all ${
-              fileName
-                ? 'border-[#00B74F] bg-green-50'
+              fileName && !parseError
+                ? 'border-[#00B74F] bg-green-50 cursor-default'
                 : 'border-gray-200 bg-white hover:border-[#00509B] hover:bg-blue-50 cursor-pointer'
             }`}
           >
@@ -147,9 +130,9 @@ export default function CVInput({ value, onChange }: Props) {
             {parsing ? (
               <div className="flex flex-col items-center gap-3">
                 <div className="w-8 h-8 border-2 border-[#00509B] border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-gray-500">Reading CV…</p>
+                <p className="text-sm text-gray-500">Reading file…</p>
               </div>
-            ) : fileName ? (
+            ) : fileName && !parseError ? (
               <div className="flex flex-col items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-[#00B74F] flex items-center justify-center text-white text-lg">
                   ✓
@@ -170,8 +153,7 @@ export default function CVInput({ value, onChange }: Props) {
                 <div className="text-4xl">📄</div>
                 <div>
                   <p className="font-medium text-gray-700 text-sm">
-                    Drop a file here, or{' '}
-                    <span className="text-[#00509B]">browse</span>
+                    Drop a file here, or <span className="text-[#00509B]">browse</span>
                   </p>
                   <p className="text-xs text-gray-400 mt-1">PDF or TXT · Max 10MB</p>
                 </div>
@@ -180,10 +162,9 @@ export default function CVInput({ value, onChange }: Props) {
           </div>
 
           {parseError && (
-            <p className="mt-2 text-xs text-red-500">{parseError}</p>
+            <p className="mt-2 text-xs text-red-500 px-1">{parseError}</p>
           )}
 
-          {/* Extracted text preview */}
           {value && !parsing && (
             <div className="mt-3 bg-gray-50 rounded-xl p-4 border border-gray-100">
               <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-2">
